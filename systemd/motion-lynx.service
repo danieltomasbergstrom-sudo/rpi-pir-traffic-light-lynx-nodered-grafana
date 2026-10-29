@@ -1,0 +1,17 @@
+[Unit]
+Description=Motion guard (PIR + traffic light) to local MQTT (IoT Open edge)
+After=network-online.target mosquitto.service
+Wants=network-online.target
+
+[Service]
+# Byt <användare> mot ditt användarnamn (kör "whoami" på Pi:n)
+User=<användare>
+WorkingDirectory=/home/<användare>/motion-iotopen
+Environment=MOTION_LOCATION=hall
+Environment=HEARTBEAT=60
+ExecStart=/home/<användare>/motion-iotopen/.venv/bin/python motion_to_lynx.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
