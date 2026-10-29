@@ -1,0 +1,380 @@
+[
+  {
+    "id": "tab_motion",
+    "type": "tab",
+    "label": "Rörelsevakt regler",
+    "disabled": false,
+    "info": ""
+  },
+  {
+    "id": "note1",
+    "type": "comment",
+    "z": "tab_motion",
+    "name": "1. Byt ut test-injektorna mot lynx-in-noder: PIR-funktionen → 'Märk: rörelse', larm-brytaren → 'Märk: larm'",
+    "info": "",
+    "x": 480,
+    "y": 40,
+    "wires": []
+  },
+  {
+    "id": "inj_tick",
+    "type": "inject",
+    "z": "tab_motion",
+    "name": "Klocka (var 5:e sekund)",
+    "props": [
+      {
+        "p": "payload"
+      },
+      {
+        "p": "topic",
+        "vt": "str"
+      }
+    ],
+    "repeat": "5",
+    "crontab": "",
+    "once": true,
+    "onceDelay": 1,
+    "topic": "tick",
+    "x": 170,
+    "y": 100,
+    "wires": [
+      [
+        "fn_traffic"
+      ]
+    ]
+  },
+  {
+    "id": "inj_m1",
+    "type": "inject",
+    "z": "tab_motion",
+    "name": "Test: rörelse",
+    "props": [
+      {
+        "p": "payload",
+        "v": "{\"value\": 1, \"timestamp\": $floor($millis()/1000)}",
+        "vt": "jsonata"
+      },
+      {
+        "p": "topic",
+        "vt": "str"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 1,
+    "topic": "",
+    "x": 170,
+    "y": 160,
+    "wires": [
+      [
+        "chg_motion"
+      ]
+    ]
+  },
+  {
+    "id": "inj_m0",
+    "type": "inject",
+    "z": "tab_motion",
+    "name": "Test: ingen rörelse",
+    "props": [
+      {
+        "p": "payload",
+        "v": "{\"value\": 0, \"timestamp\": $floor($millis()/1000)}",
+        "vt": "jsonata"
+      },
+      {
+        "p": "topic",
+        "vt": "str"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 1,
+    "topic": "",
+    "x": 170,
+    "y": 210,
+    "wires": [
+      [
+        "chg_motion"
+      ]
+    ]
+  },
+  {
+    "id": "inj_a1",
+    "type": "inject",
+    "z": "tab_motion",
+    "name": "Test: larma på",
+    "props": [
+      {
+        "p": "payload",
+        "v": "{\"value\": 1, \"timestamp\": $floor($millis()/1000)}",
+        "vt": "jsonata"
+      },
+      {
+        "p": "topic",
+        "vt": "str"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 1,
+    "topic": "",
+    "x": 170,
+    "y": 280,
+    "wires": [
+      [
+        "chg_armed"
+      ]
+    ]
+  },
+  {
+    "id": "inj_a0",
+    "type": "inject",
+    "z": "tab_motion",
+    "name": "Test: larma av",
+    "props": [
+      {
+        "p": "payload",
+        "v": "{\"value\": 0, \"timestamp\": $floor($millis()/1000)}",
+        "vt": "jsonata"
+      },
+      {
+        "p": "topic",
+        "vt": "str"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 1,
+    "topic": "",
+    "x": 170,
+    "y": 330,
+    "wires": [
+      [
+        "chg_armed"
+      ]
+    ]
+  },
+  {
+    "id": "chg_motion",
+    "type": "change",
+    "z": "tab_motion",
+    "name": "Märk: rörelse",
+    "rules": [
+      {
+        "t": "set",
+        "p": "topic",
+        "pt": "msg",
+        "to": "motion",
+        "tot": "str"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 400,
+    "y": 185,
+    "wires": [
+      [
+        "fn_traffic",
+        "fn_activity",
+        "wd_pir"
+      ]
+    ]
+  },
+  {
+    "id": "chg_armed",
+    "type": "change",
+    "z": "tab_motion",
+    "name": "Märk: larm",
+    "rules": [
+      {
+        "t": "set",
+        "p": "topic",
+        "pt": "msg",
+        "to": "armed",
+        "tot": "str"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 400,
+    "y": 305,
+    "wires": [
+      [
+        "fn_traffic"
+      ]
+    ]
+  },
+  {
+    "id": "fn_traffic",
+    "type": "function",
+    "z": "tab_motion",
+    "name": "Regel: trafikljus",
+    "outputs": 4,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "func": "// Trafikljusregel: bestämmer vilken lampa som ska lysa.\n//   Ej larmat:  grön = lugnt, gul = rörelse nyligen\n//   Larmat:     grön = lugnt, röd = rörelse upptäckt (gul under utgångsfördröjningen)\n// Tar emot meddelanden märkta msg.topic = \"motion\", \"armed\" eller \"tick\".\nconst HOLD_ALARM_S = 60;       // röd lyser så här länge efter sista rörelsen\nconst HOLD_ACTIVITY_S = 120;   // gul lyser så här länge efter sista rörelsen\nconst ARM_DELAY_S = 30;        // tid att gå ut efter att larmet slagits på\nconst STALE_S = 180;           // \"rörelse pågår\" gäller bara om PIR hörts av nyligen\nconst RESYNC_S = 60;           // skicka alla lampors läge igen, ifall Pi:n startat om\n\nconst now = Date.now();\nconst raw = (msg.payload !== null && typeof msg.payload === \"object\") ? msg.payload.value : msg.payload;\nconst num = (raw === null || raw === undefined || raw === \"\") ? NaN : Number(raw);\n\nif (msg.topic === \"motion\" && !isNaN(num)) {\n    const wasMoving = context.get(\"motion\") === true;\n    context.set(\"motion\", num !== 0);\n    context.set(\"motionMsgAt\", now);\n    if (num !== 0 || wasMoving) context.set(\"lastMotion\", now);   // tiden räknas från rörelsens slut\n} else if (msg.topic === \"armed\" && !isNaN(num)) {\n    const wasArmed = context.get(\"armed\") === true;\n    context.set(\"armed\", num !== 0);\n    if (num !== 0 && !wasArmed) context.set(\"armedAt\", now);\n} else if (msg.topic !== \"tick\") {\n    return null;\n}\n\nconst armed = context.get(\"armed\") === true;\nconst armedAt = context.get(\"armedAt\") || 0;\nconst lastMotion = context.get(\"lastMotion\");\nconst seenAt = context.get(\"motionMsgAt\");\nlet moving = context.get(\"motion\") === true && seenAt !== undefined && now - seenAt < STALE_S * 1000;\nlet age = lastMotion === undefined ? Infinity : (now - lastMotion) / 1000;\n\nlet want;\nif (armed) {\n    const guardFrom = armedAt + ARM_DELAY_S * 1000;\n    if (now < guardFrom) {\n        want = \"yellow\";                                  // utgångsfördröjning\n    } else {\n        if (lastMotion !== undefined && lastMotion < guardFrom) age = Infinity;  // ignorera rörelse före bevakning\n        want = (moving || age < HOLD_ALARM_S) ? \"red\" : \"green\";\n    }\n} else {\n    want = (moving || age < HOLD_ACTIVITY_S) ? \"yellow\" : \"green\";\n}\n\nconst out = [null, null, null, null];\nconst prev = context.get(\"sent\") || {};\nconst resync = now - (context.get(\"syncAt\") || 0) >= RESYNC_S * 1000;\nconst sent = {};\n[\"red\", \"yellow\", \"green\"].forEach((color, i) => {\n    const v = color === want ? 1 : 0;\n    sent[color] = v;\n    if (resync || prev[color] !== v) out[i] = { payload: v, color: color };\n});\ncontext.set(\"sent\", sent);\nif (resync) context.set(\"syncAt\", now);\n\nif (want === \"red\" && context.get(\"want\") !== \"red\") {\n    out[3] = { payload: \"Larm: rörelse upptäckt medan larmet är påslaget.\", warning: true };\n}\ncontext.set(\"want\", want);\n\nnode.status({ fill: want === \"red\" ? \"red\" : want === \"yellow\" ? \"yellow\" : \"green\", shape: \"dot\",\n              text: (armed ? \"larmat\" : \"ej larmat\") + \" → \" + want });\nreturn out;",
+    "x": 660,
+    "y": 200,
+    "wires": [
+      [
+        "out_red"
+      ],
+      [
+        "out_yellow"
+      ],
+      [
+        "out_green"
+      ],
+      [
+        "dbg_warn"
+      ]
+    ]
+  },
+  {
+    "id": "fn_activity",
+    "type": "function",
+    "z": "tab_motion",
+    "name": "Regel: mycket aktivitet (hysteres)",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "func": "// Regel: mycket aktivitet. Larmar när antalet rörelser senaste 10 minuterna når 5,\n// och avlarmar först när det är nere på 2 (hysteres, så att larmet inte fladdrar).\nconst WINDOW_S = 600;\nconst WARN_AT = 5;\nconst CLEAR_BELOW = 2;\n\nconst now = Date.now();\nconst raw = (msg.payload !== null && typeof msg.payload === \"object\") ? msg.payload.value : msg.payload;\nconst v = (raw === null || raw === undefined || raw === \"\") ? NaN : Number(raw);\nif (isNaN(v)) return null;\n\nconst prevHigh = context.get(\"high\") === true;\nlet edges = context.get(\"edges\") || [];\nif (v !== 0 && !prevHigh) edges.push(now);           // ny rörelse = stigande flank\ncontext.set(\"high\", v !== 0);\nedges = edges.filter(t => now - t < WINDOW_S * 1000);\ncontext.set(\"edges\", edges);\n\nconst n = edges.length;\nconst busy = context.get(\"busy\") === true;\nnode.status({ text: n + \" rörelser/10 min\" });\nif (!busy && n >= WARN_AT) {\n    context.set(\"busy\", true);\n    return { payload: \"Mycket aktivitet: \" + n + \" rörelser senaste 10 minuterna.\", warning: true };\n}\nif (busy && n < CLEAR_BELOW) {\n    context.set(\"busy\", false);\n    return { payload: \"Aktiviteten har lugnat sig (\" + n + \" rörelser senaste 10 minuterna).\", warning: false };\n}\nreturn null;",
+    "x": 690,
+    "y": 300,
+    "wires": [
+      [
+        "dbg_warn"
+      ]
+    ]
+  },
+  {
+    "id": "wd_pir",
+    "type": "trigger",
+    "z": "tab_motion",
+    "name": "Regel: ingen data från PIR på 3 min",
+    "op1": "",
+    "op2": "Varning: ingen data från PIR-sensorn på 3 minuter.",
+    "op1type": "nul",
+    "op2type": "str",
+    "duration": "3",
+    "extend": true,
+    "overrideDelay": false,
+    "units": "min",
+    "reset": "",
+    "bytopic": "all",
+    "topic": "topic",
+    "outputs": 1,
+    "x": 700,
+    "y": 380,
+    "wires": [
+      [
+        "dbg_warn"
+      ]
+    ]
+  },
+  {
+    "id": "out_red",
+    "type": "debug",
+    "z": "tab_motion",
+    "name": "Trafikljus röd (byt mot lynx-out)",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 980,
+    "y": 120,
+    "wires": []
+  },
+  {
+    "id": "out_yellow",
+    "type": "debug",
+    "z": "tab_motion",
+    "name": "Trafikljus gul (byt mot lynx-out)",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 980,
+    "y": 170,
+    "wires": []
+  },
+  {
+    "id": "out_green",
+    "type": "debug",
+    "z": "tab_motion",
+    "name": "Trafikljus grön (byt mot lynx-out)",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 980,
+    "y": 220,
+    "wires": []
+  },
+  {
+    "id": "dbg_warn",
+    "type": "debug",
+    "z": "tab_motion",
+    "name": "Varningar",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 980,
+    "y": 320,
+    "wires": []
+  },
+  {
+    "id": "note2",
+    "type": "comment",
+    "z": "tab_motion",
+    "name": "2. Byt de tre 'Trafikljus'-noderna mot lynx-out (funktionerna Trafikljus röd, gul och grön)",
+    "info": "",
+    "x": 480,
+    "y": 440,
+    "wires": []
+  },
+  {
+    "id": "note3",
+    "type": "comment",
+    "z": "tab_motion",
+    "name": "3. Koppla 'Varningar' till lynx-notification, e-post eller annan nod som skickar meddelandet",
+    "info": "",
+    "x": 480,
+    "y": 480,
+    "wires": []
+  }
+]
